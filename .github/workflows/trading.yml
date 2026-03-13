@@ -1,0 +1,128 @@
+name: 🤖 Unified Signal System
+
+on:
+  schedule:
+    # كل 15 دقيقة — ساعات السوق الأمريكي
+    - cron: '*/15 14-21 * * 1-5'
+
+    # كريبتو وفوركس — 4 مرات يومياً
+    - cron: '0 0,6,12,18 * * *'
+
+    # متتبع النتائج — يومياً 22:00 UTC (بعد إغلاق NYSE)
+    - cron: '0 22 * * 1-5'
+
+    # التقرير الأسبوعي + Reflect — كل سبت 8 صباحاً UTC
+    - cron: '0 8 * * 6'
+
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'وضع التشغيل'
+        required: false
+        default: 'normal'
+        type: choice
+        options:
+          - normal
+          - weekly
+
+concurrency:
+  group: trading-memory-lock
+  cancel-in-progress: false
+
+jobs:
+  signal-system:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: 📥 تحميل الكود
+        uses: actions/checkout@v4
+
+      - name: 🧠 استرجاع الذاكرة من المستودع الخاص
+        run: |
+          mkdir -p memory
+          git clone \
+            https://x-access-token:${{ secrets.MEMORY_REPO_TOKEN }}@github.com/${{ secrets.MEMORY_REPO_NAME }}.git \
+            mem_repo 2>/dev/null || true
+          if [ -d "mem_repo" ]; then
+            cp mem_repo/trading_memory.db    memory/ 2>/dev/null || true
+            cp mem_repo/current_strategy.txt memory/ 2>/dev/null || true
+            echo "✅ تم استرجاع الذاكرة"
+          else
+            echo "⚠️ بداية جديدة — لا ذاكرة سابقة"
+          fi
+
+      - name: 🐍 إعداد Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 📦 تثبيت المكتبات
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytz   # روزنامة السوق
+
+      - name: 🤖 تشغيل دورة التحليل
+        if: |
+          github.event.inputs.mode != 'weekly' &&
+          github.event.schedule != '0 8 * * 6' &&
+          github.event.schedule != '0 22 * * 1-5'
+        env:
+          GROQ_API_KEY:        ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY:  ${{ secrets.OPENROUTER_API_KEY }}
+          TELEGRAM_BOT_TOKEN:  ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:    ${{ secrets.TELEGRAM_CHAT_ID }}
+          FRED_API_KEY:        ${{ secrets.FRED_API_KEY }}
+          LLM_PROVIDER:        ${{ secrets.LLM_PROVIDER }}
+          LLM_MODEL:           ${{ secrets.LLM_MODEL }}
+          WATCH_STOCKS:        ${{ secrets.WATCH_STOCKS }}
+          WATCH_CRYPTO:        ${{ secrets.WATCH_CRYPTO }}
+          WATCH_FOREX:         ${{ secrets.WATCH_FOREX }}
+          WATCH_COMMODITIES:   ${{ secrets.WATCH_COMMODITIES }}
+          WATCH_INDICES:       ${{ secrets.WATCH_INDICES }}
+          CONSENSUS_THRESHOLD: ${{ secrets.CONSENSUS_THRESHOLD }}
+        run: python main.py
+
+      - name: 📊 التقرير الأسبوعي (Reflect + OPRO)
+        if: |
+          github.event.inputs.mode == 'weekly' ||
+          github.event.schedule == '0 8 * * 6'
+        env:
+          GROQ_API_KEY:        ${{ secrets.GROQ_API_KEY }}
+          TELEGRAM_BOT_TOKEN:  ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:    ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python main.py --weekly
+
+      # ============================================================
+      # متتبع النتائج — يومياً بعد إغلاق السوق
+      # ============================================================
+      - name: 🎯 تتبع نتائج إشارات الأمس
+        if: github.event.schedule == '0 22 * * 1-5'
+        env:
+          TELEGRAM_BOT_TOKEN:  ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:    ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python outcome_tracker.py
+
+      - name: 💾 حفظ الذاكرة في المستودع الخاص
+        if: always()
+        run: |
+          if [ ! -d "mem_repo" ]; then
+            git clone \
+              https://x-access-token:${{ secrets.MEMORY_REPO_TOKEN }}@github.com/${{ secrets.MEMORY_REPO_NAME }}.git \
+              mem_repo 2>/dev/null || mkdir -p mem_repo
+          fi
+          cd mem_repo
+          git config user.name  "Trading Bot 🤖"
+          git config user.email "trading-bot@signal-system.com"
+          cp ../memory/trading_memory.db    . 2>/dev/null || true
+          cp ../memory/current_strategy.txt . 2>/dev/null || true
+          git add trading_memory.db current_strategy.txt 2>/dev/null || true
+          if git diff --staged --quiet; then
+            echo "✅ لا تغييرات في الذاكرة"
+          else
+            git commit -m "💾 ذاكرة | $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git push origin main
+            echo "✅ تم حفظ الذاكرة"
+          fi
