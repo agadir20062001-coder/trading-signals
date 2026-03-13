@@ -5,9 +5,9 @@ ccxt>=4.3.0
 yfinance>=0.2.40
 pandas>=2.0.0
 numpy>=1.26.0
+pandas-ta
 requests>=2.31.0
 python-dotenv>=1.0.0
 fredapi>=0.5.1
 scipy>=1.11.0
 pytz>=2024.1
-pandas-ta
