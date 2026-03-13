@@ -58,11 +58,12 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: 📦 تثبيت المكتبات
+- name: 📦 تثبيت المكتبات
         run: |
           pip install --upgrade pip
+          pip install pandas-ta  # تثبيت يدوي قسري
           pip install -r requirements.txt
-          pip install pytz   # روزنامة السوق
+          pip install pytz
 
       - name: 🤖 تشغيل دورة التحليل
         if: |
