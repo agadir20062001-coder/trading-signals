@@ -61,7 +61,6 @@ jobs:
 - name: 📦 تثبيت المكتبات
         run: |
           pip install --upgrade pip
-          pip install pandas-ta  # تثبيت يدوي قسري
           pip install -r requirements.txt
           pip install pytz
 
