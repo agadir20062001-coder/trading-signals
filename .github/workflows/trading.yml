@@ -52,10 +52,10 @@ jobs:
             echo "⚠️ بداية جديدة — لا ذاكرة سابقة"
           fi
 
-      - name: 🐍 إعداد Python 3.11
+      - name: 🐍 إعداد Python 3.10  # قمنا بتغيير الإصدار هنا
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.10' # هذا هو التغيير الجوهري
           cache: 'pip'
 
 - name: 📦 تثبيت المكتبات
