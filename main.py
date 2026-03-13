@@ -248,15 +248,4 @@ class UnifiedSignalSystem:
 # نقطة الدخول
 # ============================================================
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description="نظام الإشارات الموحد")
-    parser.add_argument(
-        "--weekly",
-        action="store_true",
-        help="تشغيل المهام الأسبوعية (Reflect + OPRO)"
-    )
-    args = parser.parse_args()
-
-    system = UnifiedSignalSystem()
-    system.run(weekly=args.weekly)
+    UnifiedSignalSystem().run()
